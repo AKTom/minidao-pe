@@ -4,6 +4,7 @@ import java.lang.annotation.Annotation;
 
 import org.jeecgframework.minidao.annotation.MiniDao;
 import org.jeecgframework.minidao.aop.MiniDaoHandler;
+import org.jeecgframework.minidao.aspect.EmptyInterceptor;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -43,6 +44,10 @@ public class MiniDaoBeanScannerConfigurer implements BeanDefinitionRegistryPostP
 	 * 数据库类型
 	 */
 	private String dbType;
+	/**
+	 * Minidao拦截器
+	 */
+	private EmptyInterceptor emptyInterceptor;
 
 	@Override
 	public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
@@ -74,6 +79,7 @@ public class MiniDaoBeanScannerConfigurer implements BeanDefinitionRegistryPostP
 		jdbcDaoProxyDefinition.getPropertyValues().add("keyType", keyType);
 		jdbcDaoProxyDefinition.getPropertyValues().add("showSql", showSql);
 		jdbcDaoProxyDefinition.getPropertyValues().add("dbType", dbType);
+		jdbcDaoProxyDefinition.getPropertyValues().add("emptyInterceptor", emptyInterceptor);
 		registry.registerBeanDefinition("miniDaoHandler", jdbcDaoProxyDefinition);
 	}
 
@@ -99,6 +105,14 @@ public class MiniDaoBeanScannerConfigurer implements BeanDefinitionRegistryPostP
 
 	public void setShowSql(boolean showSql) {
 		this.showSql = showSql;
+	}
+
+	public EmptyInterceptor getEmptyInterceptor() {
+		return emptyInterceptor;
+	}
+
+	public void setEmptyInterceptor(EmptyInterceptor emptyInterceptor) {
+		this.emptyInterceptor = emptyInterceptor;
 	}
 
 }

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.jeecgframework.minidao.annotation.Arguments;
+import org.jeecgframework.minidao.annotation.Param;
 import org.jeecgframework.minidao.annotation.ResultType;
 import org.jeecgframework.minidao.annotation.Sql;
 import org.jeecgframework.minidao.pojo.MiniDaoPage;
@@ -36,8 +37,10 @@ public interface EmployeeDao {
 	 * @param name
 	 * @return
 	 */
-	@Arguments({ "empno", "name" })
+	@Arguments({ "empno", "name"})
 	Map<String,Object> getMap(String empno, String name);
+	
+	Map<String,Object> getMap2(@Param("empno") String empno,@Param("name")String name);
 
 	/**
 	 * 修改数据

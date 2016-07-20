@@ -1,5 +1,6 @@
 package org.jeecgframework.minidao.aop;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -19,12 +20,15 @@ import org.apache.log4j.Logger;
 import org.jeecgframework.minidao.annotation.Arguments;
 import org.jeecgframework.minidao.annotation.ResultType;
 import org.jeecgframework.minidao.annotation.Sql;
+import org.jeecgframework.minidao.aspect.EmptyInterceptor;
+import org.jeecgframework.minidao.aspect.MinidaoInterceptor;
 import org.jeecgframework.minidao.def.MiniDaoConstants;
 import org.jeecgframework.minidao.pojo.MiniDaoPage;
 import org.jeecgframework.minidao.spring.rowMapper.MiniColumnMapRowMapper;
 import org.jeecgframework.minidao.spring.rowMapper.MiniColumnOriginalMapRowMapper;
 import org.jeecgframework.minidao.util.FreemarkerParseFactory;
 import org.jeecgframework.minidao.util.MiniDaoUtil;
+import org.jeecgframework.minidao.util.ParameterNameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.ColumnMapRowMapper;
@@ -66,6 +70,10 @@ public class MiniDaoHandler implements InvocationHandler {
 	private boolean showSql = false;
 
 	private String dbType;
+	/**
+	 * minidao拦截器
+	 */
+	private EmptyInterceptor emptyInterceptor;
 
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
@@ -79,7 +87,7 @@ public class MiniDaoHandler implements InvocationHandler {
 		MiniDaoPage pageSetting = new MiniDaoPage();
 
 		// Step.0 判断是否是Hiber实体维护方法，如果是执行Hibernate方式实体维护
-		Map<String, Object> rs = new HashMap<String, Object>();
+//		Map<String, Object> rs = new HashMap<String, Object>();
 
 		// Step.1装载SQL模板，所需参数
 		templateSql = installDaoMetaData(pageSetting, method, sqlParamsMap, args);
@@ -93,12 +101,18 @@ public class MiniDaoHandler implements InvocationHandler {
 		// Step.5 获取SQL执行返回值
 		try {
 			returnObj = getReturnMinidaoResult(dbType, pageSetting, method, executeSql, sqlMap);
-		} catch (EmptyResultDataAccessException e) {
+		} catch (Exception e) {
 			returnObj = null;
+			if(e instanceof EmptyResultDataAccessException){
+				//数据查询为空，不抛出Spring异常
+			}else{
+				e.printStackTrace();
+				throw e;
+			}
 		}
 		if (showSql) {
-			//TODO 待实现
-			logger.info("MiniDao-SQL:\n\n");
+			System.out.println("MiniDao-SQL:\n\n" + executeSql);
+			logger.info("MiniDao-SQL:\n\n" + executeSql);
 		}
 		return returnObj;
 	}
@@ -349,6 +363,26 @@ public class MiniDaoHandler implements InvocationHandler {
 	 * @throws Exception
 	 */
 	private String installDaoMetaData(MiniDaoPage pageSetting, Method method, Map<String, Object> sqlParamsMap, Object[] args) throws Exception {
+		//update-begin---author:scott----date:20160511------for:minidao拦截器逻辑--------
+		//System.out.println(" -- methodName -- "+ methodName );
+		if(emptyInterceptor!=null && args!= null && args.length==1){
+			String methodName = method.getName();
+			Object obj = args[0];
+			Field[] fields = obj.getClass().getDeclaredFields();
+			if(methodName.startsWith("insert")){
+				if(emptyInterceptor!=null){
+					emptyInterceptor.onInsert(fields, obj);
+				}
+			}
+			if(methodName.startsWith("update")){
+				if(emptyInterceptor!=null){
+					emptyInterceptor.onUpdate(fields, obj);
+				}
+			}
+			//reflect(obj);
+		}
+		//update-begin---author:scott----date:20160511------for:minidao拦截器逻辑--------
+		
 		String templateSql = null;
 		// 如果方法参数大于1个的话，方法必须使用注释标签Arguments
 		boolean arguments_flag = method.isAnnotationPresent(Arguments.class);
@@ -356,9 +390,9 @@ public class MiniDaoHandler implements InvocationHandler {
 			// [1].获取方法的参数标签
 			Arguments arguments = method.getAnnotation(Arguments.class);
 			logger.debug("@Arguments------------------------------------------" + Arrays.toString(arguments.value()));
-			if (arguments.value().length > args.length) {
+			if (arguments.value().length != args.length) {
 				// 校验机制-如果注释标签参数数目大于方法的参数，则抛出异常
-				throw new Exception("[注释标签]参数数目，不能大于[方法参数]参数数目");
+				throw new Exception("注释标签@Arguments参数数目，与方法参数数目不相等~");
 			}
 			// step.2.将args转换成键值对，封装成Map对象
 			int args_num = 0;
@@ -376,8 +410,30 @@ public class MiniDaoHandler implements InvocationHandler {
 			}
 		} else {
 			// 如果未使用[参数标签]
-			if (args != null && args.length > 1) {
-				throw new Exception("方法参数数目>=2，方法必须使用注释标签@Arguments");
+			if (args != null && args.length >= 1) {
+				//---update-begin----author:scott-----date:20160302-----for:支持新参数注解写法--------------
+				String[] params = ParameterNameUtils.getMethodParameterNamesByAnnotation(method);
+				if(params==null || params.length==0){
+					throw new Exception("方法参数数目>=2，必须使用：方法标签@Arguments 或  参数标签@param");
+				}
+				if (params.length != args.length) {
+					throw new Exception("方法参数数目>=2，参数必须使用：标签@param");
+				}
+				int args_num = 0;
+				for (String v : params) {
+					if(v==null){
+						throw new Exception("Dao接口定义，所有参数必须使用@param标签~");
+					}
+					if (v.equalsIgnoreCase("page")) {
+						pageSetting.setPage(Integer.parseInt(args[args_num].toString()));
+					}
+					if (v.equalsIgnoreCase("rows")) {
+						pageSetting.setRows(Integer.parseInt(args[args_num].toString()));
+					}
+					sqlParamsMap.put(v, args[args_num]);
+					args_num++;
+				}
+				//---update-end----author:scott-----date:20160302-----for:支持新参数注解写法--------------
 			} else if (args != null && args.length == 1) {
 				// step.2.将args转换成键值对，封装成Map对象
 				sqlParamsMap.put(MiniDaoConstants.SQL_FTL_DTO, args[0]);
@@ -499,4 +555,13 @@ public class MiniDaoHandler implements InvocationHandler {
 	public void setShowSql(boolean showSql) {
 		this.showSql = showSql;
 	}
+	
+	public EmptyInterceptor getEmptyInterceptor() {
+		return emptyInterceptor;
+	}
+
+	public void setEmptyInterceptor(EmptyInterceptor emptyInterceptor) {
+		this.emptyInterceptor = emptyInterceptor;
+	}
+
 }

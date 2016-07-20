@@ -1,12 +1,14 @@
 insert 
 into 
 employee
-      (id,empno,name,age,birthday,salary) 
+      (id,empno,name,age,birthday,salary,create_by,create_date) 
 values
       ('${employee.id}',
        :employee.empno,
        :employee.name,
        :employee.age,
        :employee.birthday,
-       :employee.salary
+       :employee.salary,
+       :employee.createBy,
+       :employee.createDate
       )
