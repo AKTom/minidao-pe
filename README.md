@@ -1,6 +1,6 @@
 MiniDao-PE (JAVA持久层框架)
 =======
-当前最新版本： 1.6-SNAPSHOT （发布日期：20160720）
+当前最新版本： 1.6.1 （发布日期：20160912）
 
 
 ###MiniDao-PE 简介及特征
@@ -102,4 +102,4 @@ MiniDao-PE 是一种持久化解决方案，类似mybatis的持久层解决方�
 * 作 者：  张代浩
 * 论 坛： [www.jeecg.org](http://www.jeecg.org)
 * 邮 箱：  jeecg@sina.com
-* QQ交流群：325978980
+* QQ交流群：325978980、143858350

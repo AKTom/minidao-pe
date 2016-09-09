@@ -21,7 +21,6 @@ import org.jeecgframework.minidao.annotation.Arguments;
 import org.jeecgframework.minidao.annotation.ResultType;
 import org.jeecgframework.minidao.annotation.Sql;
 import org.jeecgframework.minidao.aspect.EmptyInterceptor;
-import org.jeecgframework.minidao.aspect.MinidaoInterceptor;
 import org.jeecgframework.minidao.def.MiniDaoConstants;
 import org.jeecgframework.minidao.pojo.MiniDaoPage;
 import org.jeecgframework.minidao.spring.rowMapper.MiniColumnMapRowMapper;
@@ -31,11 +30,11 @@ import org.jeecgframework.minidao.util.MiniDaoUtil;
 import org.jeecgframework.minidao.util.ParameterNameUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.ColumnMapRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.simple.ParameterizedBeanPropertyRowMapper;
 
 /**
  * 
@@ -127,6 +126,22 @@ public class MiniDaoHandler implements InvocationHandler {
 		String keys[] = MiniDaoConstants.INF_METHOD_ACTIVE.split(",");
 		for (String s : keys) {
 			if (methodName.startsWith(s))
+				return true;
+		}
+		return false;
+	}
+	
+	/**
+	 * 判斷SQL是否（非查詢）
+	 * 
+	 * @param methodName
+	 * @return
+	 */
+	private static boolean checkActiveSql(String sql) {
+		sql = sql.trim().toLowerCase();
+		String keys[] = MiniDaoConstants.INF_METHOD_ACTIVE.split(",");
+		for (String s : keys) {
+			if (sql.startsWith(s))
 				return true;
 		}
 		return false;
@@ -239,8 +254,10 @@ public class MiniDaoHandler implements InvocationHandler {
 		// step.4.调用SpringJdbc引擎，执行SQL返回值
 		// 5.1获取返回值类型[Map/Object/List<Object>/List<Map>/基本类型]
 		String methodName = method.getName();
+		//update-begin---author:scott----date:20160906------for:增加通过sql判断是否非查询操作--------
 		// 判斷是否非查詢方法
-		if (checkActiveKey(methodName)) {
+		if (checkActiveKey(methodName) || checkActiveSql(executeSql)) {
+		//update-end---author:scott----date:20160906------for:增加通过sql判断是否非查询操作--------
 			if (paramMap != null) {
 				return namedParameterJdbcTemplate.update(executeSql, paramMap);
 			} else {
@@ -252,8 +269,11 @@ public class MiniDaoHandler implements InvocationHandler {
 			// 如果是查詢操作
 			Class<?> returnType = method.getReturnType();
 			if (returnType.isPrimitive()) {
-				Number number = jdbcTemplate.queryForObject(executeSql, BigDecimal.class);
-				// update-begin--Author:JueYue Date:20140611 for：修复int类型的bug
+				//update-begin---author:scott----date:20160906------for:修复非包装类型，无法传参数问题--------
+				Number number = namedParameterJdbcTemplate.queryForObject(executeSql, paramMap, BigDecimal.class);
+					//jdbcTemplate.queryForObject(executeSql, BigDecimal.class);
+				//update-begin---author:scott----date:20160906------for:修复非包装类型，无法传参数问题--------
+				
 				if ("int".equals(returnType.getCanonicalName())) {
 					return number.intValue();
 				} else if ("long".equals(returnType.getCanonicalName())) {
@@ -308,8 +328,11 @@ public class MiniDaoHandler implements InvocationHandler {
 					return jdbcTemplate.queryForObject(executeSql, returnType);
 				}
 			} else {
+				//---update-begin--author:scott---date:20160909----for:支持spring4---------
 				// 对象类型
-				RowMapper<?> rm = ParameterizedBeanPropertyRowMapper.newInstance(returnType);
+				RowMapper<?> rm = BeanPropertyRowMapper.newInstance(returnType);
+				//RowMapper<?> rm = ParameterizedBeanPropertyRowMapper.newInstance(returnType);
+				//---update-end--author:scott---date:20160909----for:支持spring4---------
 				if (paramMap != null) {
 					return namedParameterJdbcTemplate.queryForObject(executeSql, paramMap, rm);
 				} else {
@@ -333,7 +356,9 @@ public class MiniDaoHandler implements InvocationHandler {
 			if (resultType.value().equals(Map.class)) {
 				return getColumnMapRowMapper();
 			}
-			return ParameterizedBeanPropertyRowMapper.newInstance(resultType.value());
+			//---update-begin--author:scott---date:20160909----for:支持spring4---------
+			return BeanPropertyRowMapper.newInstance(resultType.value());
+			//---update-end--author:scott---date:20160909----for:支持spring4---------
 		}
 		String genericReturnType = method.getGenericReturnType().toString();
 		String realType = genericReturnType.replace("java.util.List", "").replace("<", "").replace(">", "");
@@ -341,7 +366,9 @@ public class MiniDaoHandler implements InvocationHandler {
 			return getColumnMapRowMapper();
 		} else if (realType.length() > 0) {
 			try {
-				return ParameterizedBeanPropertyRowMapper.newInstance(Class.forName(realType));
+				//---update-begin--author:scott---date:20160909----for:支持spring4---------
+				return BeanPropertyRowMapper.newInstance(Class.forName(realType));
+				//---update-end--author:scott---date:20160909----for:支持spring4---------
 			} catch (ClassNotFoundException e) {
 				logger.error(e.getMessage(), e.fillInStackTrace());
 				throw new RuntimeException("minidao get class error ,class name is:" + realType);
@@ -462,12 +489,15 @@ public class MiniDaoHandler implements InvocationHandler {
 	 */
 	private Map<String, Object> installPlaceholderSqlParam(String executeSql, Map sqlParamsMap) throws OgnlException {
 		Map<String, Object> map = new HashMap<String, Object>();
-		String regEx = ":[ tnx0Bfr]*[0-9a-z.A-Z]+"; // 表示以：开头，[0-9或者.或者A-Z大小都写]的任意字符，超过一个
+		//update-begin---author:scott----date:20160906------for:参数不支持下划线解决--------
+		String regEx = ":[ tnx0Bfr]*[0-9a-z.A-Z_]+"; // 表示以：开头，[0-9或者.或者A-Z大小都写]的任意字符，超过一个
+		//update-begin---author:scott----date:20160906------for:参数不支持下划线解决--------
 		Pattern pat = Pattern.compile(regEx);
 		Matcher m = pat.matcher(executeSql);
 		while (m.find()) {
 			logger.debug(" Match [" + m.group() + "] at positions " + m.start() + "-" + (m.end() - 1));
 			String ognl_key = m.group().replace(":", "").trim();
+			logger.debug(" --- minidao --- 解析参数 --- " + ognl_key);
 			map.put(ognl_key, Ognl.getValue(ognl_key, sqlParamsMap));
 		}
 		return map;
