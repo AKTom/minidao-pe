@@ -1,19 +1,21 @@
-MiniDao-PE (JAVA持久层框架)
+MiniDao-PE (超轻量级JAVA持久层框架)
 =======
 当前最新版本： 1.6.1 （发布日期：20160912）
 
 
 ###MiniDao-PE 简介及特征
 
-MiniDao-PE 是一种持久化解决方案，类似mybatis的持久层解决方案，可以轻松集成Hibernate工程，事务统一管理，解决了Hibernate工程想支持mybaits的功能问题。 具有以下特征:
+MiniDao-PE 是一款超级轻量的JAVA持久层框架，基于SpringJdbc 实现，具备Mybatis一样的标签和SQL灵活性。可无缝集成Hibernate项目，支持事务统一管理，有效解决Hibernate项目，实现灵活的SQL分离问题。 
 
-* 1.O/R mapping不用设置xml，零配置便于维护
-* 2.不需要了解JDBC的知识
-* 3.SQL语句和java代码的分离
-* 4.接口和实现分离，不用写持久层代码，用户只需写接口，以及某些接口方法对应的sql 它会通过AOP自动生成实现类
-* 5.支持自动事务处理和手动事务处理
-* 6.支持与hibernate轻量级无缝集成
-* 7.SQL支持脚本语言
+具有以下特征:
+
+* 1. O/R mapping不用设置xml，零配置便于维护
+* 2. 不需要了解JDBC的知识
+* 3. SQL语句和java代码的分离
+* 4. 只需接口定义，无需接口实现
+* 5. SQL支持脚本语言（强大脚本语言）
+* 6. 支持与hibernate轻量级无缝集成
+* 7. 支持自动事务处理和手动事务处理
 
 
 
@@ -22,23 +24,19 @@ MiniDao-PE 是一种持久化解决方案，类似mybatis的持久层解决方�
 ### 接口定义[EmployeeDao.java]  
     @MiniDao
     public interface EmployeeDao {
-     @Arguments("employee")
-     public List<Map> getAllEmployees(Employee employee);
+	
+     public List<Map> getAllEmployees(@Param("employee") Employee employee);
     
-     @Arguments("empno")
-     Employee getEmployee(String empno);
+     Employee getEmployee(@Param("empno") String empno);
     
-     @Arguments({"empno","name"})
-     Map getMap(String empno,String name);
+     Map getMap(@Param("empno")String empno,@Param("name")String name);
 
      @Sql("SELECT count(*) FROM employee")
      Integer getCount();
 
-     @Arguments("employee")
-     int update(Employee employee);
+     int update(@Param("employee") Employee employee);
 
-     @Arguments("employee")
-     void insert(Employee employee);
+     void insert(@Param("employee") Employee employee);
    }
     
     
@@ -71,16 +69,18 @@ MiniDao-PE 是一种持久化解决方案，类似mybatis的持久层解决方�
 		<!-- 数据库类型 -->
 		<property name="dbType" value="mysql"></property>
 		<!-- dao地址,配置符合spring方式 -->
-		<property name="basePackage" value="org.jeecgframework.web,com.jeecg"></property>
+		<property name="basePackage" value="examples.dao.*"></property>
 		<!-- 使用的注解,默认是Minidao,推荐 Repository-->
 		<property name="annotation" value="org.springframework.stereotype.Repository"></property>
+		<!-- Minidao拦截器配置 
+		<property name="emptyInterceptor" ref="minidaoInterceptor"></property>
+		-->
 	</bean>
 
 ### 测试代码
     public class Client {
     public static void main(String args[]) {
-		BeanFactory factory = new ClassPathXmlApplicationContext(
-				"applicationContext.xml");
+		BeanFactory factory = new ClassPathXmlApplicationContext("applicationContext.xml");
      		
 		EmployeeDao employeeDao = (EmployeeDao) factory.getBean("employeeDao");
 		Employee employee = new Employee();
